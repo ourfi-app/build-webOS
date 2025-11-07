@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+
+{% block title %}Documentation - webOS Build{% endblock %}
+
+{% block content %}
+<div class="docs-page">
+    <h2>📚 Documentation</h2>
+
+    <div class="docs-nav">
+        <button class="btn btn-secondary" onclick="loadDoc('RENDER_ENVIRONMENT.md')">Render Environment</button>
+        <button class="btn btn-outline" onclick="loadDoc('README.md')">README</button>
+    </div>
+
+    <div class="docs-content" id="docs-content">
+        <p class="loading">Loading documentation...</p>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+async function loadDoc(filename) {
+    try {
+        const response = await fetch(`/api/docs/${filename}`);
+        const data = await response.json();
+
+        if (data.error) {
+            document.getElementById('docs-content').innerHTML = `
+                <div class="error">
+                    <h3>Error Loading Documentation</h3>
+                    <p>${data.error}</p>
+                </div>
+            `;
+            return;
+        }
+
+        document.getElementById('docs-content').innerHTML = data.content;
+    } catch (error) {
+        console.error('Error loading documentation:', error);
+        document.getElementById('docs-content').innerHTML = `
+            <div class="error">
+                <h3>Error</h3>
+                <p>Failed to load documentation: ${error.message}</p>
+            </div>
+        `;
+    }
+}
+
+// Load default documentation on page load
+const urlParams = new URLSearchParams(window.location.search);
+const docFile = urlParams.get('file') || 'RENDER_ENVIRONMENT.md';
+loadDoc(docFile);
+</script>
+{% endblock %}

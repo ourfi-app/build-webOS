@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - webOS Build{% endblock %}
+
+{% block content %}
+<div class="dashboard">
+    <h2>System Overview</h2>
+
+    <div class="stats-grid">
+        <div class="stat-card" id="git-status">
+            <h3>📦 Git Status</h3>
+            <div class="stat-content">
+                <p><strong>Branch:</strong> <span id="git-branch">Loading...</span></p>
+                <p><strong>Commit:</strong> <span id="git-commit">Loading...</span></p>
+                <p><strong>Status:</strong> <span id="git-dirty">Loading...</span></p>
+            </div>
+        </div>
+
+        <div class="stat-card" id="build-status">
+            <h3>🔨 Build Status</h3>
+            <div class="stat-content">
+                <p><strong>Configured:</strong> <span id="build-configured">Loading...</span></p>
+                <p><strong>Machine:</strong> <span id="build-machine">Loading...</span></p>
+                <p><strong>Last Build:</strong> <span id="build-last">Loading...</span></p>
+            </div>
+        </div>
+
+        <div class="stat-card" id="qemu-status">
+            <h3>💻 QEMU Status</h3>
+            <div class="stat-content">
+                <p><strong>Running:</strong> <span id="qemu-count">Loading...</span></p>
+                <p><strong>Processes:</strong> <span id="qemu-list">Loading...</span></p>
+            </div>
+        </div>
+
+        <div class="stat-card" id="system-status">
+            <h3>⚙️ System Resources</h3>
+            <div class="stat-content">
+                <p><strong>CPU:</strong> <span id="cpu-usage">Loading...</span></p>
+                <p><strong>Memory:</strong> <span id="memory-usage">Loading...</span></p>
+                <p><strong>Disk:</strong> <span id="disk-usage">Loading...</span></p>
+            </div>
+        </div>
+    </div>
+
+    <div class="section">
+        <h3>📊 Recent Builds</h3>
+        <div id="recent-builds">
+            <p class="loading">Loading build information...</p>
+        </div>
+    </div>
+
+    <div class="section">
+        <h3>📚 Quick Links</h3>
+        <div class="quick-links">
+            <a href="/docs" class="btn btn-primary">View Documentation</a>
+            <a href="/build" class="btn btn-secondary">Manage Builds</a>
+            <a href="/qemu" class="btn btn-secondary">Launch QEMU</a>
+            <a href="/api/status" class="btn btn-outline" target="_blank">API Status</a>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Fetch and update dashboard data
+async function updateDashboard() {
+    try {
+        const response = await fetch('/api/status');
+        const data = await response.json();
+
+        // Update Git Status
+        document.getElementById('git-branch').textContent = data.git.branch;
+        document.getElementById('git-commit').textContent = data.git.commit;
+        document.getElementById('git-dirty').textContent = data.git.dirty ? '⚠️ Dirty' : '✅ Clean';
+
+        // Update Build Status
+        document.getElementById('build-configured').textContent = data.build.configured ? '✅ Yes' : '❌ No';
+        document.getElementById('build-machine').textContent = data.build.machine || 'Not set';
+
+        if (data.build.last_build) {
+            const date = new Date(data.build.last_build.modified);
+            document.getElementById('build-last').textContent = date.toLocaleString();
+        } else {
+            document.getElementById('build-last').textContent = 'No builds yet';
+        }
+
+        // Update QEMU Status
+        document.getElementById('qemu-count').textContent = data.qemu.length;
+        if (data.qemu.length > 0) {
+            const processList = data.qemu.map(p => `PID ${p.pid}`).join(', ');
+            document.getElementById('qemu-list').textContent = processList;
+        } else {
+            document.getElementById('qemu-list').textContent = 'None';
+        }
+
+        // Update System Resources
+        document.getElementById('cpu-usage').textContent = `${data.system.cpu.percent.toFixed(1)}%`;
+        document.getElementById('memory-usage').textContent = `${data.system.memory.percent.toFixed(1)}%`;
+        document.getElementById('disk-usage').textContent = `${data.system.disk.percent.toFixed(1)}%`;
+
+        // Update Recent Builds
+        const buildsContainer = document.getElementById('recent-builds');
+        if (data.build.builds && data.build.builds.length > 0) {
+            const buildsHTML = data.build.builds.slice(0, 5).map(build => `
+                <div class="build-item">
+                    <strong>${build.machine}</strong> - ${build.image}
+                    <br>
+                    <small>Size: ${formatBytes(build.size)} | Modified: ${new Date(build.modified).toLocaleString()}</small>
+                </div>
+            `).join('');
+            buildsContainer.innerHTML = buildsHTML;
+        } else {
+            buildsContainer.innerHTML = '<p class="info">No builds found. Start building to see results here.</p>';
+        }
+
+    } catch (error) {
+        console.error('Error fetching dashboard data:', error);
+    }
+}
+
+function formatBytes(bytes) {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+}
+
+// Update dashboard on load and every 10 seconds
+updateDashboard();
+setInterval(updateDashboard, 10000);
+</script>
+{% endblock %}

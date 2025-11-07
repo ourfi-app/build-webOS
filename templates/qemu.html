@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+
+{% block title %}QEMU Management - webOS Build{% endblock %}
+
+{% block content %}
+<div class="qemu-page">
+    <h2>💻 QEMU Management</h2>
+
+    <div class="section">
+        <h3>Launch QEMU</h3>
+        <p>Run QEMU with graphics rendering for testing.</p>
+
+        <div class="form-group">
+            <label for="qemu-machine-select">Machine:</label>
+            <select id="qemu-machine-select" class="form-control">
+                {% for machine in machines %}
+                <option value="{{ machine }}" {% if machine == 'qemux86-64' %}selected{% endif %}>{{ machine }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label>Display Options:</label>
+            <div class="radio-group">
+                <label><input type="radio" name="display" value="sdl" checked> SDL (OpenGL)</label>
+                <label><input type="radio" name="display" value="gtk"> GTK</label>
+                <label><input type="radio" name="display" value="vnc"> VNC</label>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label>
+                <input type="checkbox" id="enable-virgl" checked>
+                Enable VirtIO GPU (virgl)
+            </label>
+        </div>
+
+        <div class="form-group">
+            <label>
+                <input type="checkbox" id="enable-kvm" checked>
+                Enable KVM Acceleration
+            </label>
+        </div>
+
+        <div class="alert alert-info">
+            <strong>Note:</strong> QEMU must be launched from the command line or terminal.
+            Use the generated command below.
+        </div>
+    </div>
+
+    <div class="section">
+        <h3>Launch Command</h3>
+        <div class="command-box">
+            <pre><code id="qemu-command">./scripts/run-qemu-graphics.sh --machine qemux86-64 --display sdl</code></pre>
+            <button class="btn btn-primary" onclick="copyCommand()">Copy Command</button>
+        </div>
+    </div>
+
+    <div class="section">
+        <h3>Running QEMU Processes</h3>
+        <div id="qemu-processes">
+            <p class="loading">Loading QEMU processes...</p>
+        </div>
+        <button class="btn btn-secondary" onclick="refreshProcesses()">Refresh</button>
+    </div>
+
+    <div class="section">
+        <h3>Quick Start Guide</h3>
+        <ol>
+            <li>Ensure the image is built for your target machine</li>
+            <li>Configure the QEMU options above</li>
+            <li>Copy and run the generated command in your terminal</li>
+            <li>QEMU will launch with graphics rendering enabled</li>
+        </ol>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Update QEMU command based on selections
+function updateCommand() {
+    const machine = document.getElementById('qemu-machine-select').value;
+    const display = document.querySelector('input[name="display"]:checked').value;
+    const virgl = document.getElementById('enable-virgl').checked;
+    const kvm = document.getElementById('enable-kvm').checked;
+
+    let command = `./scripts/run-qemu-graphics.sh --machine ${machine} --display ${display}`;
+
+    if (!virgl) {
+        command += ' --no-virgl';
+    }
+
+    if (!kvm) {
+        command += ' --no-kvm';
+    }
+
+    document.getElementById('qemu-command').textContent = command;
+}
+
+// Copy command to clipboard
+function copyCommand() {
+    const command = document.getElementById('qemu-command').textContent;
+    navigator.clipboard.writeText(command).then(() => {
+        alert('Command copied to clipboard!');
+    }).catch(err => {
+        console.error('Failed to copy:', err);
+    });
+}
+
+// Load and display running QEMU processes
+async function refreshProcesses() {
+    try {
+        const response = await fetch('/api/qemu/list');
+        const data = await response.json();
+
+        const container = document.getElementById('qemu-processes');
+        if (data.processes && data.processes.length > 0) {
+            const processesHTML = data.processes.map(proc => `
+                <div class="process-item">
+                    <h4>PID ${proc.pid} - ${proc.name}</h4>
+                    <p><strong>Started:</strong> ${new Date(proc.started).toLocaleString()}</p>
+                    <p><strong>Command:</strong> <code>${proc.cmdline.substring(0, 100)}...</code></p>
+                </div>
+            `).join('');
+            container.innerHTML = processesHTML;
+        } else {
+            container.innerHTML = '<p class="info">No QEMU processes running.</p>';
+        }
+    } catch (error) {
+        console.error('Error loading QEMU processes:', error);
+        document.getElementById('qemu-processes').innerHTML =
+            '<p class="error">Error loading processes.</p>';
+    }
+}
+
+// Add event listeners
+document.getElementById('qemu-machine-select').addEventListener('change', updateCommand);
+document.querySelectorAll('input[name="display"]').forEach(radio => {
+    radio.addEventListener('change', updateCommand);
+});
+document.getElementById('enable-virgl').addEventListener('change', updateCommand);
+document.getElementById('enable-kvm').addEventListener('change', updateCommand);
+
+// Initial load
+updateCommand();
+refreshProcesses();
+
+// Auto-refresh processes every 10 seconds
+setInterval(refreshProcesses, 10000);
+</script>
+{% endblock %}

@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+
+{% block title %}Build Management - webOS Build{% endblock %}
+
+{% block content %}
+<div class="build-page">
+    <h2>🔨 Build Management</h2>
+
+    <div class="section">
+        <h3>Build Configuration</h3>
+        <p>Configure and manage webOS image builds.</p>
+
+        <div class="form-group">
+            <label for="machine-select">Target Machine:</label>
+            <select id="machine-select" class="form-control">
+                {% for machine in machines %}
+                <option value="{{ machine }}">{{ machine }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label for="image-select">Image Type:</label>
+            <select id="image-select" class="form-control">
+                {% for image in images %}
+                <option value="{{ image }}">{{ image }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="alert alert-info">
+            <strong>Note:</strong> Build operations are not available in the web dashboard.
+            Use the command line interface or SSH into your build server.
+        </div>
+    </div>
+
+    <div class="section">
+        <h3>Build Commands</h3>
+        <div class="command-box">
+            <h4>1. Configure Build Environment</h4>
+            <pre><code>./mcf -p 0 -b 0 <span id="cmd-machine">qemux86-64</span></code></pre>
+
+            <h4>2. Source Build Environment</h4>
+            <pre><code>source oe-init-build-env</code></pre>
+
+            <h4>3. Build Image</h4>
+            <pre><code>bitbake <span id="cmd-image">webos-image</span></code></pre>
+
+            <h4>4. Enable Render Configuration (Optional)</h4>
+            <pre><code>echo 'require webos-render.conf' >> webos-local.conf</code></pre>
+        </div>
+    </div>
+
+    <div class="section">
+        <h3>Built Images</h3>
+        <div id="built-images">
+            <p class="loading">Loading built images...</p>
+        </div>
+    </div>
+
+    <div class="section">
+        <h3>Available Scripts</h3>
+        <div id="available-scripts">
+            <p class="loading">Loading scripts...</p>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Update commands when selections change
+document.getElementById('machine-select').addEventListener('change', function() {
+    document.getElementById('cmd-machine').textContent = this.value;
+});
+
+document.getElementById('image-select').addEventListener('change', function() {
+    document.getElementById('cmd-image').textContent = this.value;
+});
+
+// Load built images
+async function loadBuiltImages() {
+    try {
+        const response = await fetch('/api/build/status');
+        const data = await response.json();
+
+        const container = document.getElementById('built-images');
+        if (data.builds && data.builds.length > 0) {
+            const imagesHTML = data.builds.map(build => `
+                <div class="build-item">
+                    <h4>${build.machine} - ${build.image}</h4>
+                    <p>Size: ${formatBytes(build.size)}</p>
+                    <p>Modified: ${new Date(build.modified).toLocaleString()}</p>
+                </div>
+            `).join('');
+            container.innerHTML = imagesHTML;
+        } else {
+            container.innerHTML = '<p class="info">No built images found.</p>';
+        }
+    } catch (error) {
+        console.error('Error loading built images:', error);
+    }
+}
+
+// Load available scripts
+async function loadScripts() {
+    try {
+        const response = await fetch('/api/scripts');
+        const data = await response.json();
+
+        const container = document.getElementById('available-scripts');
+        if (data.scripts && data.scripts.length > 0) {
+            const scriptsHTML = data.scripts.map(script => `
+                <div class="script-item">
+                    <strong>${script.name}</strong>
+                    ${script.executable ? '✅ Executable' : '❌ Not Executable'}
+                    <br>
+                    <small>Modified: ${new Date(script.modified).toLocaleString()}</small>
+                </div>
+            `).join('');
+            container.innerHTML = scriptsHTML;
+        } else {
+            container.innerHTML = '<p class="info">No scripts found.</p>';
+        }
+    } catch (error) {
+        console.error('Error loading scripts:', error);
+    }
+}
+
+function formatBytes(bytes) {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+}
+
+// Load data on page load
+loadBuiltImages();
+loadScripts();
+</script>
+{% endblock %}
