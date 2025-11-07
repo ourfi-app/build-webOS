@@ -1,0 +1,193 @@
+# webOS QEMU Render Environment Configuration Template
+#
+# This is a sample configuration for setting up graphics rendering in QEMU.
+# Copy this file to the root directory and customize as needed:
+#   cp build-templates/webos-render.conf.sample webos-render.conf
+#
+# Then include it in your webos-local.conf:
+#   require webos-render.conf
+
+# ==============================================================================
+# Graphics Features Configuration
+# ==============================================================================
+
+# Enable graphics-related DISTRO_FEATURES
+# These features enable OpenGL, Vulkan, and Wayland support in the build
+DISTRO_FEATURES:append = " opengl vulkan wayland"
+
+# For X11 support (optional, uncomment if needed)
+#DISTRO_FEATURES:append = " x11"
+
+# ==============================================================================
+# QEMU Graphics Configuration
+# ==============================================================================
+
+# Basic graphics adapter
+# Options: -vga std (standard VGA), -vga virtio (VirtIO VGA), -vga qxl
+QB_GRAPHICS ?= "-vga std"
+
+# Display backend configuration
+# sdl,gl=on: SDL2 with OpenGL acceleration
+# gtk,gl=on: GTK with OpenGL acceleration
+# vnc=:1: VNC server on port 5901 (headless)
+QB_OPT_APPEND:append = " -display sdl,gl=on"
+
+# VirtIO GPU for hardware-accelerated 3D (virgl)
+# This enables GPU pass-through for better performance
+# Comment out if you experience graphics driver issues
+QB_OPT_APPEND:append = " -device virtio-vga-gl"
+
+# Alternative: Use QXL for better 2D performance with Spice
+#QB_OPT_APPEND:append = " -device qxl-vga"
+
+# ==============================================================================
+# QEMU Memory and Performance
+# ==============================================================================
+
+# Memory allocation (in MB)
+# Increase for graphics-intensive workloads
+QB_MEM ?= "-m 2048"
+
+# For 4GB memory:
+#QB_MEM ?= "-m 4096"
+
+# Enable KVM hardware acceleration (if available on host)
+# This provides near-native performance on x86_64 hosts
+QB_OPT_APPEND:append = " ${@bb.utils.contains('MACHINE_FEATURES', 'kvm', '-enable-kvm', '', d)}"
+
+# CPU configuration (optional)
+# Use host CPU model for best KVM performance
+#QB_CPU = "-cpu host"
+# Or specify number of cores:
+#QB_CPU_KVM = "-cpu host -smp 4"
+
+# ==============================================================================
+# Audio Configuration (Optional)
+# ==============================================================================
+
+# PulseAudio support
+#QB_AUDIO_OPT = "-audiodev pa,id=snd0"
+#QB_AUDIO_DRV = "-device AC97,audiodev=snd0"
+
+# ALSA support
+#QB_AUDIO_OPT = "-audiodev alsa,id=snd0"
+#QB_AUDIO_DRV = "-device AC97,audiodev=snd0"
+
+# ==============================================================================
+# Qt6 Graphics Configuration
+# ==============================================================================
+
+# Qt Platform Abstraction (QPA) plugin
+# Options: wayland, xcb (X11), eglfs (direct framebuffer)
+QT_QPA_PLATFORM ?= "wayland"
+
+# Qt Quick rendering backend
+# Options: software, opengl, openvg
+QT_QUICK_BACKEND ?= "software"
+
+# For OpenGL backend (requires proper GPU support):
+#QT_QUICK_BACKEND ?= "opengl"
+
+# ==============================================================================
+# Mesa/OpenGL Configuration
+# ==============================================================================
+
+# Mesa package configuration
+# Enable LLVM-accelerated Gallium drivers
+PACKAGECONFIG:append:pn-mesa = " gallium-llvm"
+
+# Enable virgl (VirtIO GPU 3D driver)
+PACKAGECONFIG:append:pn-mesa = " virgl"
+
+# Enable additional Mesa drivers (optional)
+#PACKAGECONFIG:append:pn-mesa = " egl gles gbm"
+
+# DRI driver selection (optional)
+#MESA_DRI_DRIVERS = "swrast"
+
+# ==============================================================================
+# Image Features for Graphics Testing
+# ==============================================================================
+
+# Add debugging and development tools
+EXTRA_IMAGE_FEATURES += "debug-tweaks tools-debug tools-profile"
+
+# ==============================================================================
+# Graphics Testing Tools
+# ==============================================================================
+
+# Add graphics testing and debugging tools to the image
+IMAGE_INSTALL:append = " \
+    mesa-demos \
+    kmscube \
+    weston \
+    weston-examples \
+"
+
+# Qt6 examples (optional, increases image size)
+#IMAGE_INSTALL:append = " qt6-qtbase-examples"
+
+# Vulkan tools (if DISTRO_FEATURES includes vulkan)
+#IMAGE_INSTALL:append = " vulkan-tools"
+
+# X11 tools (if using X11)
+#IMAGE_INSTALL:append = " xorg-minimal xterm"
+
+# ==============================================================================
+# Advanced Options
+# ==============================================================================
+
+# Serial console configuration
+#QB_SERIAL_OPT = "-serial mon:stdio"
+
+# Network configuration
+# slirp: User-mode networking (default, no root required)
+# tap: TAP networking (requires root, better performance)
+#QB_SLIRP_OPT = "-netdev user,id=net0"
+#QB_TAP_OPT = "-netdev tap,id=net0,ifname=tap0,script=no,downscript=no"
+
+# Shared folder between host and guest (9p virtio)
+#QB_DRIVE_TYPE = "/dev/vdb"
+#QB_FSINFO = "virtio-9p"
+
+# ==============================================================================
+# Troubleshooting Options
+# ==============================================================================
+
+# Disable virgl if you encounter graphics driver issues
+#QB_OPT_APPEND:remove = " -device virtio-vga-gl"
+
+# Use software rendering only (llvmpipe)
+#QB_GRAPHICS = "-vga std"
+#QB_OPT_APPEND:remove = " -display sdl,gl=on"
+#QB_OPT_APPEND:append = " -display sdl,gl=off"
+
+# Increase log verbosity for debugging
+#QB_OPT_APPEND:append = " -d guest_errors"
+
+# ==============================================================================
+# Profile-Specific Configurations
+# ==============================================================================
+
+# Uncomment the profile you want to use:
+
+## Profile 1: Maximum Performance (requires KVM and GPU)
+#QB_MEM = "-m 4096"
+#QB_CPU_KVM = "-cpu host -smp 4"
+#QB_OPT_APPEND:append = " -device virtio-vga-gl -display sdl,gl=on -enable-kvm"
+
+## Profile 2: Software Rendering (no GPU required)
+#QB_GRAPHICS = "-vga std"
+#QB_OPT_APPEND:remove = " -device virtio-vga-gl"
+#QB_OPT_APPEND:append = " -display sdl,gl=off"
+#QT_QUICK_BACKEND = "software"
+
+## Profile 3: Headless/VNC (for CI/CD)
+#QB_GRAPHICS = "-vga std"
+#QB_OPT_APPEND:remove = " -display sdl,gl=on"
+#QB_OPT_APPEND:append = " -display vnc=:1"
+
+## Profile 4: X11 Testing
+#DISTRO_FEATURES:append = " x11"
+#QT_QPA_PLATFORM = "xcb"
+#IMAGE_INSTALL:append = " xorg-minimal xterm"
